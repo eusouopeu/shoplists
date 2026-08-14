@@ -1,19 +1,52 @@
-import { deleteList, getLists, totalPriceForList } from '../../db/database';
+import { useRef } from 'preact/hooks';
+import { deleteList, getExpiringWarranties, getLists, totalPriceForList } from '../../db/database';
+import type { ExpiringWarranty } from '../../db/database';
 import type { ShoppingList } from '../../db/types';
 import { listStatusLabel, listTypeLabel } from '../../domain/labels';
+import { importListFromFile } from '../../services/backupService';
 import { useLiveQuery } from '../../state/useLiveQuery';
-import { confirmDialog } from '../components/ConfirmDialog';
+import { alertDialog, confirmDialog } from '../components/ConfirmDialog';
 import { openListFormSheet } from '../components/ListFormSheet';
+import { openSheet } from '../overlay';
 import type { Screen } from '../types';
 
 export function ListsScreen({ onPush }: { onPush: (screen: Screen) => void }) {
   const lists = useLiveQuery(() => getLists(), []);
+  const warranties = useLiveQuery(() => getExpiringWarranties(), []);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function onImportFile(e: Event) {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    (e.target as HTMLInputElement).value = '';
+    if (!file) return;
+    try {
+      await importListFromFile(file);
+    } catch {
+      await alertDialog({ title: 'Falha ao importar', content: 'O arquivo selecionado não é uma lista válida.' });
+    }
+  }
 
   return (
     <div class="screen">
       <header class="appbar">
         <h1>Listas de Compras</h1>
+        <button class="icon-btn" aria-label="Buscar" onClick={() => onPush({ type: 'search' })}>
+          🔍
+        </button>
+        <button class="icon-btn" aria-label="Importar lista" onClick={() => fileInputRef.current?.click()}>
+          📥
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json"
+          class="hidden-file-input"
+          onChange={onImportFile}
+        />
       </header>
+      {warranties !== undefined && warranties.length > 0 && (
+        <WarrantyBanner warranties={warranties} />
+      )}
       <div class="screen-body">
         {lists === undefined ? (
           <div class="centered">Carregando…</div>
@@ -27,6 +60,35 @@ export function ListsScreen({ onPush }: { onPush: (screen: Screen) => void }) {
         +
       </button>
     </div>
+  );
+}
+
+function WarrantyBanner({ warranties }: { warranties: ExpiringWarranty[] }) {
+  const abrir = () =>
+    openSheet<void>((close) => (
+      <div class="sheet-list">
+        <div class="sheet-title">Garantias expirando em breve</div>
+        {warranties.map((w) => (
+          <div class="list-row" key={w.item.id}>
+            <div>
+              <div>{w.item.nomeSimplificado}</div>
+              <div class="card-subtitle">{w.listaNome}</div>
+            </div>
+            <span class="card-total">
+              {w.diasRestantes <= 0 ? 'hoje' : `${w.diasRestantes}d`}
+            </span>
+          </div>
+        ))}
+        <button class="btn-text" onClick={() => close()}>
+          Fechar
+        </button>
+      </div>
+    ));
+
+  return (
+    <button class="banner banner--warning" onClick={abrir}>
+      ⚠️ {warranties.length} garantia{warranties.length > 1 ? 's' : ''} expirando em breve
+    </button>
   );
 }
 

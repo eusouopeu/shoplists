@@ -1,16 +1,20 @@
 import { useState } from 'preact/hooks';
-import { insertList } from '../../db/database';
-import type { ListType } from '../../db/types';
+import { insertList, updateList } from '../../db/database';
+import type { ListType, ShoppingList } from '../../db/types';
 import { openSheet } from '../overlay';
 
-export function openListFormSheet(): Promise<void> {
-  return openSheet<void>((close) => <ListForm close={close} />).then(() => undefined);
+export function openListFormSheet(existing?: ShoppingList): Promise<void> {
+  return openSheet<void>((close) => <ListForm existing={existing} close={close} />).then(() => undefined);
 }
 
-function ListForm({ close }: { close: (result?: void) => void }) {
-  const [nome, setNome] = useState('');
-  const [tipo, setTipo] = useState<ListType>('normal');
-  const [intervaloDias, setIntervaloDias] = useState('30');
+function ListForm({ existing, close }: { existing?: ShoppingList; close: (result?: void) => void }) {
+  const isEdit = existing != null;
+  const [nome, setNome] = useState(existing?.nome ?? '');
+  const [tipo, setTipo] = useState<ListType>(existing?.tipo ?? 'normal');
+  const [intervaloDias, setIntervaloDias] = useState(
+    existing?.intervaloDias != null ? String(existing.intervaloDias) : '30',
+  );
+  const [orcamento, setOrcamento] = useState(existing?.orcamento != null ? String(existing.orcamento) : '');
   const [erro, setErro] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -29,15 +33,29 @@ function ListForm({ close }: { close: (result?: void) => void }) {
       }
       intervalo = n;
     }
+    const orcamentoTrim = orcamento.trim();
+    let orcamentoValor: number | null = null;
+    if (orcamentoTrim !== '') {
+      const n = Number.parseFloat(orcamentoTrim.replace(',', '.'));
+      if (!Number.isFinite(n) || n < 0) {
+        setErro('Orçamento inválido');
+        return;
+      }
+      orcamentoValor = n;
+    }
     setErro(null);
     setSaving(true);
-    await insertList({ nome: nomeTrim, tipo, intervaloDias: intervalo });
+    if (isEdit) {
+      await updateList(existing!.id!, { nome: nomeTrim, tipo, intervaloDias: intervalo, orcamento: orcamentoValor });
+    } else {
+      await insertList({ nome: nomeTrim, tipo, intervaloDias: intervalo, orcamento: orcamentoValor });
+    }
     close();
   };
 
   return (
     <div class="form-sheet">
-      <h3>Nova lista</h3>
+      <h3>{isEdit ? 'Editar lista' : 'Nova lista'}</h3>
       <label class="field">
         <span>Nome da lista</span>
         <input
@@ -67,9 +85,19 @@ function ListForm({ close }: { close: (result?: void) => void }) {
           />
         </label>
       )}
+      <label class="field">
+        <span>Orçamento (R$)</span>
+        <input
+          type="text"
+          inputMode="decimal"
+          placeholder="Opcional"
+          value={orcamento}
+          onInput={(e) => setOrcamento((e.target as HTMLInputElement).value)}
+        />
+      </label>
       {erro && <p class="field-error">{erro}</p>}
       <button class="btn-filled btn-block" disabled={saving} onClick={salvar}>
-        {saving ? 'Salvando…' : 'Criar lista'}
+        {saving ? 'Salvando…' : isEdit ? 'Salvar alterações' : 'Criar lista'}
       </button>
     </div>
   );

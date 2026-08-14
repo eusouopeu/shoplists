@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
-import type { Category, ProductLink, ShoppingList, ShoppingListItem } from './types';
+import type { Category, ProductLink, PurchaseHistoryEntry, ShoppingList, ShoppingListItem } from './types';
 
 const DEFAULT_CATEGORY_SEEDS = [
   'Roupas',
@@ -15,6 +15,7 @@ class ShoplistDexie extends Dexie {
   shoppingLists!: EntityTable<ShoppingList, 'id'>;
   shoppingListItems!: EntityTable<ShoppingListItem, 'id'>;
   productLinks!: EntityTable<ProductLink, 'id'>;
+  purchaseHistory!: EntityTable<PurchaseHistoryEntry, 'id'>;
 
   constructor() {
     super('shoplist');
@@ -25,8 +26,48 @@ class ShoplistDexie extends Dexie {
       productLinks: '++id, itemId',
     });
 
+    this.version(2)
+      .stores({
+        categories: '++id, nome',
+        shoppingLists: '++id, status, dataCriacao',
+        shoppingListItems: '++id, listaId, categoriaId, ordem',
+        productLinks: '++id, itemId',
+        purchaseHistory: '++id, itemNome, listaId, data',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('categories')
+          .toCollection()
+          .modify((c) => {
+            c.icone = c.icone ?? null;
+            c.cor = c.cor ?? null;
+          });
+        await tx
+          .table('shoppingLists')
+          .toCollection()
+          .modify((l) => {
+            l.orcamento = l.orcamento ?? null;
+          });
+
+        const items = await tx.table('shoppingListItems').toArray();
+        const byList = new Map<number, typeof items>();
+        for (const item of items) {
+          const bucket = byList.get(item.listaId) ?? [];
+          bucket.push(item);
+          byList.set(item.listaId, bucket);
+        }
+        for (const bucket of byList.values()) {
+          bucket.sort((a, b) => a.id - b.id);
+          for (let i = 0; i < bucket.length; i++) {
+            await tx.table('shoppingListItems').update(bucket[i].id, { ordem: i });
+          }
+        }
+      });
+
     this.on('populate', async () => {
-      await this.categories.bulkAdd(DEFAULT_CATEGORY_SEEDS.map((nome) => ({ nome })));
+      await this.categories.bulkAdd(
+        DEFAULT_CATEGORY_SEEDS.map((nome) => ({ nome, icone: null, cor: null })),
+      );
     });
   }
 }

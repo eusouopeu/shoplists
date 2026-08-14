@@ -3,6 +3,7 @@ import type {
   Category,
   ListType,
   ProductLink,
+  PurchaseHistoryEntry,
   ShoppingList,
   ShoppingListItem,
   StoreType,
@@ -24,8 +25,18 @@ export async function getCategories(): Promise<Category[]> {
   return dexieDb.categories.orderBy('nome').toArray();
 }
 
-export async function insertCategory(nome: string): Promise<number> {
-  return dexieDb.categories.add({ nome });
+export async function insertCategory(
+  nome: string,
+  extra?: { icone?: string | null; cor?: string | null },
+): Promise<number> {
+  return dexieDb.categories.add({ nome, icone: extra?.icone ?? null, cor: extra?.cor ?? null });
+}
+
+export async function updateCategory(
+  id: number,
+  patch: Partial<Omit<Category, 'id'>>,
+): Promise<void> {
+  await dexieDb.categories.update(id, patch);
 }
 
 export async function deleteCategory(id: number): Promise<void> {
@@ -48,6 +59,7 @@ export async function insertList(params: {
   nome: string;
   tipo: ListType;
   intervaloDias?: number | null;
+  orcamento?: number | null;
 }): Promise<number> {
   return dexieDb.shoppingLists.add({
     nome: params.nome,
@@ -57,11 +69,19 @@ export async function insertList(params: {
     proximaDataRessurgimento: null,
     status: 'ativa',
     dataCriacao: new Date(),
+    orcamento: params.orcamento ?? null,
   });
 }
 
 export async function renameList(id: number, nome: string): Promise<void> {
   await dexieDb.shoppingLists.update(id, { nome });
+}
+
+export async function updateList(
+  id: number,
+  patch: Partial<Pick<ShoppingList, 'nome' | 'tipo' | 'intervaloDias' | 'orcamento'>>,
+): Promise<void> {
+  await dexieDb.shoppingLists.update(id, patch);
 }
 
 export async function deleteList(id: number): Promise<void> {
@@ -83,7 +103,13 @@ export async function deleteList(id: number): Promise<void> {
 // ---------------- Items ----------------
 
 export async function getItemsForList(listaId: number): Promise<ShoppingListItem[]> {
-  return dexieDb.shoppingListItems.where('listaId').equals(listaId).sortBy('id');
+  return dexieDb.shoppingListItems.where('listaId').equals(listaId).sortBy('ordem');
+}
+
+export async function reorderItems(idsEmOrdem: number[]): Promise<void> {
+  await dexieDb.shoppingListItems.bulkUpdate(
+    idsEmOrdem.map((id, index) => ({ key: id, changes: { ordem: index } })),
+  );
 }
 
 export async function getItem(id: number): Promise<ShoppingListItem> {
@@ -101,6 +127,7 @@ export interface NewItemInput {
 }
 
 export async function insertItem(input: NewItemInput): Promise<number> {
+  const existentes = await dexieDb.shoppingListItems.where('listaId').equals(input.listaId).count();
   return dexieDb.shoppingListItems.add({
     listaId: input.listaId,
     nomeSimplificado: input.nomeSimplificado,
@@ -112,6 +139,7 @@ export async function insertItem(input: NewItemInput): Promise<number> {
     prazoGarantiaDias: input.prazoGarantiaDias ?? null,
     dataFimGarantia: null,
     dataFimArrependimento: null,
+    ordem: existentes,
   });
 }
 
@@ -143,6 +171,25 @@ export async function markItemPurchased(
     dataFimGarantia: prazo != null ? addDays(now, prazo) : null,
     dataFimArrependimento: addDays(now, 7),
   });
+  await recordPurchaseHistory(item, now);
+}
+
+async function recordPurchaseHistory(item: ShoppingListItem, data: Date): Promise<void> {
+  try {
+    const preco = await unitPriceForItem({ ...item, comprado: true });
+    const lista = await dexieDb.shoppingLists.get(item.listaId);
+    await dexieDb.purchaseHistory.add({
+      itemNome: item.nomeSimplificado,
+      categoriaId: item.categoriaId,
+      listaId: item.listaId,
+      listaNome: lista?.nome ?? '',
+      precoPago: preco,
+      quantidade: item.quantidade,
+      data,
+    });
+  } catch (err) {
+    console.error('recordPurchaseHistory falhou', err);
+  }
 }
 
 export async function unmarkItemPurchased(itemId: number): Promise<void> {
@@ -268,4 +315,192 @@ export async function totalPriceForList(listId: number): Promise<number> {
     if (unit != null) total += unit * item.quantidade;
   }
   return total;
+}
+
+// ---------------- Histórico de compras ----------------
+
+export async function getPurchaseHistory(): Promise<PurchaseHistoryEntry[]> {
+  const all = await dexieDb.purchaseHistory.toArray();
+  return all.sort((a, b) => b.data.getTime() - a.data.getTime());
+}
+
+export async function getPriceHistoryForItemName(itemNome: string): Promise<PurchaseHistoryEntry[]> {
+  const entries = await dexieDb.purchaseHistory.where('itemNome').equals(itemNome).toArray();
+  return entries.sort((a, b) => a.data.getTime() - b.data.getTime());
+}
+
+export interface FrequentItem {
+  nome: string;
+  categoriaId: number | null;
+  vezes: number;
+}
+
+/** Nomes de itens mais comprados no histórico, para sugestão em listas
+ * vazias (mais recente prevalece na categoria em caso de repetição). */
+export async function getFrequentItemNames(limit = 8): Promise<FrequentItem[]> {
+  const all = await dexieDb.purchaseHistory.orderBy('data').reverse().toArray();
+  const byName = new Map<string, FrequentItem>();
+  for (const entry of all) {
+    const existing = byName.get(entry.itemNome);
+    if (existing) {
+      existing.vezes += 1;
+    } else {
+      byName.set(entry.itemNome, { nome: entry.itemNome, categoriaId: entry.categoriaId, vezes: 1 });
+    }
+  }
+  return Array.from(byName.values())
+    .sort((a, b) => b.vezes - a.vezes)
+    .slice(0, limit);
+}
+
+// ---------------- Garantias ----------------
+
+export interface ExpiringWarranty {
+  item: ShoppingListItem;
+  listaNome: string;
+  diasRestantes: number;
+}
+
+export async function getExpiringWarranties(withinDays = 3): Promise<ExpiringWarranty[]> {
+  const now = new Date();
+  const limite = addDays(now, withinDays);
+  const items = await dexieDb.shoppingListItems
+    .filter((i) => i.comprado && i.dataFimGarantia != null && i.dataFimGarantia >= now && i.dataFimGarantia <= limite)
+    .toArray();
+
+  const result: ExpiringWarranty[] = [];
+  for (const item of items) {
+    const lista = await dexieDb.shoppingLists.get(item.listaId);
+    const diasRestantes = Math.ceil((item.dataFimGarantia!.getTime() - now.getTime()) / 86_400_000);
+    result.push({ item, listaNome: lista?.nome ?? '', diasRestantes });
+  }
+  return result.sort((a, b) => a.diasRestantes - b.diasRestantes);
+}
+
+// ---------------- Busca global ----------------
+
+export interface SearchResults {
+  lists: ShoppingList[];
+  items: (ShoppingListItem & { listaNome: string })[];
+}
+
+export async function searchAll(query: string): Promise<SearchResults> {
+  const q = query.trim().toLowerCase();
+  if (!q) return { lists: [], items: [] };
+
+  const [lists, items] = await Promise.all([
+    dexieDb.shoppingLists.toArray(),
+    dexieDb.shoppingListItems.toArray(),
+  ]);
+
+  const matchedLists = lists.filter((l) => l.nome.toLowerCase().includes(q));
+  const listNameById = new Map(lists.map((l) => [l.id, l.nome]));
+  const matchedItems = items
+    .filter((i) => i.nomeSimplificado.toLowerCase().includes(q))
+    .map((i) => ({ ...i, listaNome: listNameById.get(i.listaId) ?? '' }));
+
+  return { lists: matchedLists, items: matchedItems };
+}
+
+// ---------------- Backup / exportação ----------------
+
+export interface FullBackup {
+  version: 1;
+  exportedAt: string;
+  categories: Category[];
+  shoppingLists: ShoppingList[];
+  shoppingListItems: ShoppingListItem[];
+  productLinks: ProductLink[];
+  purchaseHistory: PurchaseHistoryEntry[];
+}
+
+export async function getFullBackup(): Promise<FullBackup> {
+  const [categories, shoppingLists, shoppingListItems, productLinks, purchaseHistory] = await Promise.all([
+    dexieDb.categories.toArray(),
+    dexieDb.shoppingLists.toArray(),
+    dexieDb.shoppingListItems.toArray(),
+    dexieDb.productLinks.toArray(),
+    dexieDb.purchaseHistory.toArray(),
+  ]);
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    categories,
+    shoppingLists,
+    shoppingListItems,
+    productLinks,
+    purchaseHistory,
+  };
+}
+
+/** Substitui todo o conteúdo do banco pelo backup informado, preservando os IDs originais. */
+export async function restoreFullBackup(backup: FullBackup): Promise<void> {
+  await dexieDb.transaction(
+    'rw',
+    [dexieDb.categories, dexieDb.shoppingLists, dexieDb.shoppingListItems, dexieDb.productLinks, dexieDb.purchaseHistory],
+    async () => {
+      await Promise.all([
+        dexieDb.categories.clear(),
+        dexieDb.shoppingLists.clear(),
+        dexieDb.shoppingListItems.clear(),
+        dexieDb.productLinks.clear(),
+        dexieDb.purchaseHistory.clear(),
+      ]);
+      await dexieDb.categories.bulkAdd(backup.categories);
+      await dexieDb.shoppingLists.bulkAdd(backup.shoppingLists);
+      await dexieDb.shoppingListItems.bulkAdd(backup.shoppingListItems);
+      await dexieDb.productLinks.bulkAdd(backup.productLinks);
+      await dexieDb.purchaseHistory.bulkAdd(backup.purchaseHistory ?? []);
+    },
+  );
+}
+
+export interface ListExport {
+  version: 1;
+  list: Omit<ShoppingList, 'id'>;
+  items: (Omit<ShoppingListItem, 'id' | 'listaId'> & { links: Omit<ProductLink, 'id' | 'itemId'>[] })[];
+}
+
+export async function getListExport(listId: number): Promise<ListExport> {
+  const list = await getList(listId);
+  const items = await getItemsForList(listId);
+  const itemsWithLinks = await Promise.all(
+    items.map(async (item) => {
+      const links = await getLinksForItem(item.id!);
+      const { id: _id, listaId: _listaId, ...itemRest } = item;
+      return {
+        ...itemRest,
+        links: links.map(({ id: _linkId, itemId: _itemId, ...linkRest }) => linkRest),
+      };
+    }),
+  );
+  const { id: _id, ...listRest } = list;
+  return { version: 1, list: listRest, items: itemsWithLinks };
+}
+
+/** Importa uma lista exportada como uma lista nova (IDs novos), sem tocar no restante do banco. */
+export async function importListExport(data: ListExport): Promise<number> {
+  return dexieDb.transaction(
+    'rw',
+    [dexieDb.shoppingLists, dexieDb.shoppingListItems, dexieDb.productLinks],
+    async () => {
+      const listId = await dexieDb.shoppingLists.add({
+        ...data.list,
+        status: 'ativa',
+        dataCriacao: new Date(),
+      });
+      for (let i = 0; i < data.items.length; i++) {
+        const { links, ...itemRest } = data.items[i];
+        const itemId = await dexieDb.shoppingListItems.add({
+          ...itemRest,
+          listaId: listId,
+          ordem: i,
+        });
+        for (const link of links) {
+          await dexieDb.productLinks.add({ ...link, itemId });
+        }
+      }
+      return listId;
+    },
+  );
 }

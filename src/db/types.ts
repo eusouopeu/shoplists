@@ -7,6 +7,8 @@ export type StoreType = 'shopee' | 'mercadoLivre' | 'amazon' | 'outro';
 export interface Category {
   id: number;
   nome: string;
+  icone: string | null;
+  cor: string | null;
 }
 
 export interface ShoppingList {
@@ -18,6 +20,7 @@ export interface ShoppingList {
   proximaDataRessurgimento: Date | null;
   status: ListStatus;
   dataCriacao: Date;
+  orcamento: number | null;
 }
 
 export interface ShoppingListItem {
@@ -32,6 +35,18 @@ export interface ShoppingListItem {
   prazoGarantiaDias: number | null;
   dataFimGarantia: Date | null;
   dataFimArrependimento: Date | null;
+  ordem: number;
+}
+
+export interface PurchaseHistoryEntry {
+  id: number;
+  itemNome: string;
+  categoriaId: number | null;
+  listaId: number;
+  listaNome: string;
+  precoPago: number | null;
+  quantidade: number;
+  data: Date;
 }
 
 export interface ProductLink {

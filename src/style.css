@@ -601,3 +601,242 @@ hr {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Appbar com múltiplos ícones */
+
+.appbar .icon-btn--active {
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+}
+
+/* Busca */
+
+.search-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: var(--on-primary);
+}
+
+.search-input::placeholder {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* Banner de aviso */
+
+.banner {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 16px;
+  border: none;
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.banner--warning {
+  background: #fff3cd;
+  color: #5c4404;
+}
+
+@media (prefers-color-scheme: dark) {
+  .banner--warning {
+    background: #4a3c05;
+    color: #ffe08a;
+  }
+}
+
+/* Orçamento */
+
+.budget-row {
+  padding: 0 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.budget-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-variant);
+  overflow: hidden;
+}
+
+.budget-bar-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+
+.budget-bar-fill--over {
+  background: var(--danger);
+}
+
+.budget-label {
+  font-size: 0.75rem;
+  color: var(--on-surface-muted);
+}
+
+.budget-label--over {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* Modo mercado */
+
+.item-row--market {
+  padding: 18px 4px;
+}
+
+.item-row--market .card-title {
+  font-size: 1.1rem;
+}
+
+.checkbox--large {
+  width: 26px;
+  height: 26px;
+}
+
+.market-footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px calc(env(safe-area-inset-bottom) + 14px);
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 700;
+}
+
+/* Sugestões de itens */
+
+.centered-column {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
+  padding-top: 24px;
+}
+
+.suggestions {
+  padding: 0 4px;
+}
+
+.chip-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip--action {
+  border: 1px solid var(--outline);
+  background: var(--surface);
+  color: var(--on-surface);
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.chip--action:hover {
+  background: var(--surface-variant);
+}
+
+/* Drag reorder */
+
+.item-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.drag-handle {
+  cursor: grab;
+  color: var(--on-surface-muted);
+  padding: 4px 2px;
+  touch-action: none;
+  user-select: none;
+  font-size: 1.1rem;
+}
+
+.item-row--dragging {
+  opacity: 0.6;
+  background: var(--surface-variant);
+}
+
+/* Sparkline / histórico */
+
+.price-trend-card {
+  cursor: pointer;
+}
+
+.sparkline {
+  display: block;
+}
+
+/* Arquivo oculto (import) */
+
+.hidden-file-input {
+  display: none;
+}
+
+/* Configurações: categorias e presets */
+
+.list-row-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+  color: var(--on-surface);
+}
+
+.color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.preset-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.preset-swatch {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--outline);
+  background: var(--surface);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.preset-swatch--active {
+  border: 2px solid var(--primary);
+}
+
+.color-swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+
+.color-swatch--active {
+  border-color: var(--on-surface);
+}
