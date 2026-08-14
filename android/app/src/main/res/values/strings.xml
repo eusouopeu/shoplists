@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Shoplist</string>
+    <string name="title_activity_main">Shoplist</string>
+    <string name="package_name">com.eusouopeu.shoplist</string>
+    <string name="custom_url_scheme">com.eusouopeu.shoplist</string>
+</resources>
