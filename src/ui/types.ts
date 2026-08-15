@@ -3,4 +3,4 @@ export type Screen =
   | { type: 'itemForm'; listId: number; itemId?: number; prefillUrl?: string }
   | { type: 'search' };
 
-export type Tab = 'lists' | 'history' | 'settings';
+export type Tab = 'lists' | 'history' | 'reports' | 'settings';

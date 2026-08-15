@@ -3,6 +3,7 @@ import type { Tab } from '../types';
 const DESTINATIONS: { tab: Tab; label: string; icon: string }[] = [
   { tab: 'lists', label: 'Listas', icon: '📋' },
   { tab: 'history', label: 'Histórico', icon: '🕘' },
+  { tab: 'reports', label: 'Relatórios', icon: '📊' },
   { tab: 'settings', label: 'Configurações', icon: '⚙️' },
 ];
 

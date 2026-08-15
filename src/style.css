@@ -750,6 +750,12 @@ hr {
   background: var(--surface-variant);
 }
 
+.chip--selected {
+  background: var(--primary);
+  color: var(--on-primary);
+  border-color: var(--primary);
+}
+
 /* Drag reorder */
 
 .item-list {
@@ -835,6 +841,85 @@ hr {
   border-radius: 50%;
   border: 2px solid transparent;
   cursor: pointer;
+}
+
+.suggestions--recurring {
+  margin-bottom: 16px;
+}
+
+/* Importação de nota fiscal (OCR) */
+
+.receipt-review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.receipt-review-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.receipt-review-nome {
+  flex: 1;
+  min-width: 0;
+}
+
+.receipt-review-qtd {
+  width: 44px;
+}
+
+.receipt-review-preco {
+  width: 72px;
+}
+
+.receipt-review-row input[type='text'],
+.receipt-review-row input[type='number'] {
+  padding: 6px 8px;
+  border: 1px solid var(--outline);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--on-surface);
+  font-size: 0.9rem;
+}
+
+/* Relatório de gastos */
+
+.report-period-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.report-total {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 4px 0 16px;
+}
+
+.report-category-row {
+  margin-bottom: 12px;
+}
+
+.report-category-row .card-subtitle {
+  margin-bottom: 4px;
+}
+
+.report-bar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-variant);
+  overflow: hidden;
+}
+
+.report-bar-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 999px;
 }
 
 .color-swatch--active {

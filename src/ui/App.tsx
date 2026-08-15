@@ -11,6 +11,7 @@ import { HistoryScreen } from './screens/HistoryScreen';
 import { ItemFormScreen } from './screens/ItemFormScreen';
 import { ListDetailScreen } from './screens/ListDetailScreen';
 import { ListsScreen } from './screens/ListsScreen';
+import { ReportsScreen } from './screens/ReportsScreen';
 import { SearchScreen } from './screens/SearchScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import type { Screen, Tab } from './types';
@@ -68,6 +69,7 @@ export function App() {
           <div class="tab-content">
             {tab === 'lists' && <ListsScreen onPush={push} />}
             {tab === 'history' && <HistoryScreen />}
+            {tab === 'reports' && <ReportsScreen />}
             {tab === 'settings' && <SettingsScreen />}
           </div>
           <BottomNav active={tab} onSelect={setTab} />

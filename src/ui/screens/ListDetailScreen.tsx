@@ -6,6 +6,7 @@ import {
   getItemsForList,
   getLinksForItem,
   getList,
+  getRecurringItemSuggestions,
   insertItem,
   markItemPurchased,
   markListPurchased,
@@ -14,13 +15,14 @@ import {
   unitPriceForItem,
   unmarkItemPurchased,
 } from '../../db/database';
-import type { FrequentItem } from '../../db/database';
+import type { FrequentItem, RecurringSuggestion } from '../../db/database';
 import type { ShoppingListItem } from '../../db/types';
 import { exportListShare } from '../../services/backupService';
 import { useLiveQuery } from '../../state/useLiveQuery';
 import { confirmDialog } from '../components/ConfirmDialog';
 import { openListFormSheet } from '../components/ListFormSheet';
 import { pickOne } from '../components/PickerSheet';
+import { openReceiptImportSheet } from '../components/ReceiptImportSheet';
 import type { Screen } from '../types';
 import { useDragReorder } from '../useDragReorder';
 
@@ -64,6 +66,10 @@ export function ListDetailScreen({
     await exportListShare(listId, list.nome);
   };
 
+  const importarNota = () => {
+    void openReceiptImportSheet(listId);
+  };
+
   const comprados = items?.filter((i) => i.comprado).length ?? 0;
 
   return (
@@ -86,6 +92,9 @@ export function ListDetailScreen({
         <button class="icon-btn" aria-label="Compartilhar lista" onClick={compartilhar}>
           ⇪
         </button>
+        <button class="icon-btn" aria-label="Importar nota fiscal" onClick={importarNota}>
+          🧾
+        </button>
         <button class="icon-btn" aria-label="Marcar lista inteira como comprada" onClick={confirmarMarcarTudo}>
           ✓✓
         </button>
@@ -99,6 +108,9 @@ export function ListDetailScreen({
       )}
       <hr />
       <div class="screen-body">
+        {!marketMode && items !== undefined && (
+          <RecurringSuggestionsBanner listId={listId} currentItemNames={items.map((i) => i.nomeSimplificado)} />
+        )}
         {items === undefined ? (
           <div class="centered">Carregando…</div>
         ) : items.length === 0 ? (
@@ -139,6 +151,42 @@ function BudgetBar({ total, orcamento }: { total: number; orcamento: number }) {
         {over ? 'Acima do orçamento • ' : ''}
         orçamento R$ {orcamento.toFixed(2)}
       </span>
+    </div>
+  );
+}
+
+function RecurringSuggestionsBanner({
+  listId,
+  currentItemNames,
+}: {
+  listId: number;
+  currentItemNames: string[];
+}) {
+  const sugestoes = useLiveQuery(() => getRecurringItemSuggestions(4), []);
+  const jaNaLista = new Set(currentItemNames);
+  const filtradas = (sugestoes ?? []).filter((s) => !jaNaLista.has(s.nome));
+
+  const adicionar = async (s: RecurringSuggestion) => {
+    await insertItem({ listaId: listId, nomeSimplificado: s.nome, categoriaId: s.categoriaId });
+  };
+
+  if (filtradas.length === 0) return null;
+
+  return (
+    <div class="suggestions suggestions--recurring">
+      <div class="section-label">Provavelmente hora de comprar de novo</div>
+      <div class="chip-wrap">
+        {filtradas.map((s) => (
+          <button
+            key={s.nome}
+            class="chip chip--action"
+            title={`Comprado ${s.vezes}x, a cada ${Math.round(s.intervaloMedioDias)} dias em média`}
+            onClick={() => adicionar(s)}
+          >
+            ＋ {s.nome}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

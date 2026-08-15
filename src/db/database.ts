@@ -353,6 +353,57 @@ export async function getFrequentItemNames(limit = 8): Promise<FrequentItem[]> {
     .slice(0, limit);
 }
 
+export interface RecurringSuggestion {
+  nome: string;
+  categoriaId: number | null;
+  vezes: number;
+  ultimaCompra: Date;
+  intervaloMedioDias: number;
+  diasDesdeUltimaCompra: number;
+}
+
+/** Itens com >=2 compras no histórico cujo intervalo médio entre compras já
+ * foi ultrapassado desde a última vez, ordenados pelos mais atrasados.
+ * Exclui nomes que já estão pendentes (não comprados) em alguma lista ativa. */
+export async function getRecurringItemSuggestions(limit = 6): Promise<RecurringSuggestion[]> {
+  const all = await dexieDb.purchaseHistory.orderBy('data').toArray();
+  const byName = new Map<string, PurchaseHistoryEntry[]>();
+  for (const entry of all) {
+    const bucket = byName.get(entry.itemNome) ?? [];
+    bucket.push(entry);
+    byName.set(entry.itemNome, bucket);
+  }
+
+  const pendentes = await dexieDb.shoppingListItems.filter((i) => !i.comprado).toArray();
+  const nomesPendentes = new Set(pendentes.map((i) => i.nomeSimplificado));
+
+  const now = new Date();
+  const candidatas: RecurringSuggestion[] = [];
+  for (const [nome, entries] of byName) {
+    if (entries.length < 2 || nomesPendentes.has(nome)) continue;
+    const intervalos: number[] = [];
+    for (let i = 1; i < entries.length; i++) {
+      intervalos.push((entries[i].data.getTime() - entries[i - 1].data.getTime()) / 86_400_000);
+    }
+    const intervaloMedioDias = intervalos.reduce((a, b) => a + b, 0) / intervalos.length;
+    const ultima = entries[entries.length - 1];
+    const diasDesdeUltimaCompra = (now.getTime() - ultima.data.getTime()) / 86_400_000;
+    if (diasDesdeUltimaCompra < intervaloMedioDias) continue;
+    candidatas.push({
+      nome,
+      categoriaId: ultima.categoriaId,
+      vezes: entries.length,
+      ultimaCompra: ultima.data,
+      intervaloMedioDias,
+      diasDesdeUltimaCompra,
+    });
+  }
+
+  return candidatas
+    .sort((a, b) => b.diasDesdeUltimaCompra - b.intervaloMedioDias - (a.diasDesdeUltimaCompra - a.intervaloMedioDias))
+    .slice(0, limit);
+}
+
 // ---------------- Garantias ----------------
 
 export interface ExpiringWarranty {
@@ -375,6 +426,57 @@ export async function getExpiringWarranties(withinDays = 3): Promise<ExpiringWar
     result.push({ item, listaNome: lista?.nome ?? '', diasRestantes });
   }
   return result.sort((a, b) => a.diasRestantes - b.diasRestantes);
+}
+
+// ---------------- Relatório de gastos ----------------
+
+export interface CategorySpending {
+  categoriaId: number | null;
+  categoriaNome: string;
+  total: number;
+  vezes: number;
+}
+
+export interface SpendingReport {
+  inicio: Date;
+  fim: Date;
+  total: number;
+  porCategoria: CategorySpending[];
+  entradas: PurchaseHistoryEntry[];
+}
+
+/** Agrega o histórico de compras (precoPago * quantidade) por categoria
+ * dentro do período [inicio, fim], para relatórios de gastos. */
+export async function getSpendingReport(inicio: Date, fim: Date): Promise<SpendingReport> {
+  const [entradas, categorias] = await Promise.all([
+    dexieDb.purchaseHistory.where('data').between(inicio, fim, true, true).toArray(),
+    dexieDb.categories.toArray(),
+  ]);
+  const nomeById = new Map(categorias.map((c) => [c.id, c.nome]));
+
+  const porCategoriaMap = new Map<number | null, CategorySpending>();
+  let total = 0;
+  for (const entrada of entradas) {
+    if (entrada.precoPago == null) continue;
+    const valor = entrada.precoPago * entrada.quantidade;
+    total += valor;
+    const key = entrada.categoriaId;
+    const existing = porCategoriaMap.get(key);
+    if (existing) {
+      existing.total += valor;
+      existing.vezes += 1;
+    } else {
+      porCategoriaMap.set(key, {
+        categoriaId: key,
+        categoriaNome: key != null ? (nomeById.get(key) ?? 'Sem categoria') : 'Sem categoria',
+        total: valor,
+        vezes: 1,
+      });
+    }
+  }
+
+  const porCategoria = Array.from(porCategoriaMap.values()).sort((a, b) => b.total - a.total);
+  return { inicio, fim, total, porCategoria, entradas };
 }
 
 // ---------------- Busca global ----------------

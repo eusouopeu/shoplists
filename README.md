@@ -30,32 +30,55 @@ npm run preview
 
 `npm run build` gera `dist/` com o app, o manifest, os ícones e o service worker
 já prontos para deploy em qualquer host estático (Netlify, Vercel, GitHub Pages,
-Nginx, etc.). É esse `dist/` que deve ser servido por trás do domínio que o
-Tauri vai empacotar.
+Nginx, etc.). É esse `dist/` que o Capacitor empacota como app Android.
 
-## Próximo passo: Tauri
+## Empacotando como APK (Capacitor)
 
-Para empacotar como APK independente com o Tauri:
+O projeto Android nativo vive em `android/` (gerado por `npx cap add android`,
+não deve ser editado manualmente na maior parte das vezes — regenerar com
+`npx cap sync` é mais seguro que mexer direto nos arquivos gerados).
 
-1. `npm create tauri-app` (ou `cargo tauri init`) apontando `frontendDist` para
-   `../dist` deste projeto (ou copiando o conteúdo de `dist/` para dentro do
-   projeto Tauri).
-2. Ativar o target Android (`tauri android init` / `tauri android build`),
-   que exige Android Studio + NDK instalados.
-3. Como o Tauri roda o frontend num WebView nativo (não um navegador com as
-   mesmas políticas de CORS/Service Worker de um PWA instalado), dois pontos
-   deste app merecem atenção na migração:
-   - `src/services/linkMetadataService.ts`: hoje o fetch de metadados de OG
-     tags de lojas como Shopee/Amazon falha silenciosamente no navegador por
-     causa de CORS (o app cai de volta para preenchimento manual do preço,
-     igual ao Flutter original). No Tauri isso pode ser resolvido trocando o
-     `fetch` por `@tauri-apps/plugin-http`, que não sofre a mesma restrição.
-   - O Web Share Target (`public/manifest.webmanifest` → `share_target`, lido
-     em `src/services/shareTarget.ts`) é o equivalente ao
-     `receive_sharing_intent` do Flutter, mas só funciona em PWA instalado via
-     navegador. No Tauri Android, o recebimento de "compartilhar com o app"
-     precisa ser implementado nativamente (intent filter Android + plugin
-     Tauri) e então repassado para essa mesma função de parsing de URL.
+Fluxo de build:
+
+```bash
+npm run cap:sync   # builda o frontend (dist/) e sincroniza com android/
+cd android
+JAVA_HOME="$(brew --prefix openjdk@21)/libexec/openjdk.jdk/Contents/Home" \
+  ./gradlew assembleDebug
+```
+
+O APK debug sai em
+`android/app/build/outputs/apk/debug/app-debug.apk`. Requer Android SDK
+instalado (`ANDROID_HOME`/`local.properties`) e JDK 21 — o plugin Android do
+Capacitor exige `sourceCompatibility 21`, então um JDK 17 (comum em `/usr/bin/java`
+no macOS) falha o build com `invalid source release: 21`.
+
+Como o Capacitor roda o frontend num WebView nativo (não um navegador com as
+mesmas políticas de CORS/Service Worker de um PWA instalado), dois pontos
+deste app merecem atenção:
+
+- `src/services/linkMetadataService.ts`: hoje o fetch de metadados de OG tags
+  de lojas como Shopee/Amazon falha silenciosamente no navegador por causa de
+  CORS (o app cai de volta para preenchimento manual do preço, igual ao
+  Flutter original). No Capacitor isso pode ser resolvido trocando o `fetch`
+  por `@capacitor/http` (`CapacitorHttp`), que não sofre a mesma restrição.
+- O Web Share Target (`public/manifest.webmanifest` → `share_target`, lido em
+  `src/services/shareTarget.ts`) é o equivalente ao `receive_sharing_intent`
+  do Flutter, mas só funciona em PWA instalado via navegador. No Capacitor
+  Android, o recebimento de "compartilhar com o app" precisa ser
+  implementado nativamente (intent filter em `android/app/src/main/AndroidManifest.xml`
+  + plugin, ex. `@capawesome/capacitor-android-share-target` ou similar) e
+  então repassado para essa mesma função de parsing de URL.
+- Notificações de garantia (`src/services/notificationService.ts`) usam a
+  Notification API web crua; dentro do WebView isso é menos confiável do que
+  o plugin `@capacitor/local-notifications`, que seria a próxima melhoria
+  natural para esse recurso funcionar bem empacotado.
+- `src/services/receiptOcrService.ts` (importar itens a partir de foto de
+  nota fiscal) usa `tesseract.js`, que baixa o motor de OCR e o modelo de
+  idioma de um CDN na primeira execução — precisa de rede nesse momento,
+  mesma limitação do `linkMetadataService`. O reconhecimento de linhas
+  (nome + preço) é heurístico por natureza de nota fiscal brasileira; por
+  isso a tela sempre mostra os itens para revisão/edição antes de importar.
 
 ## Estrutura
 
@@ -63,7 +86,7 @@ Para empacotar como APK independente com o Tauri:
 src/
   db/         # schema Dexie + funções equivalentes a database.dart
   domain/     # labels.ts, storeDetector.ts (equivalentes ao pacote domain/ do Flutter)
-  services/   # linkMetadataService.ts, shareTarget.ts
+  services/   # linkMetadataService.ts, shareTarget.ts, receiptOcrService.ts, reportService.ts
   state/      # useLiveQuery (equivalente aos StreamProviders do Riverpod)
   ui/         # App.tsx (shell + navegação) e telas em ui/screens, componentes em ui/components
 ```
