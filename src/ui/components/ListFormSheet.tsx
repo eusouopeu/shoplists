@@ -1,6 +1,7 @@
 import { useState } from 'preact/hooks';
 import { insertList, updateList } from '../../db/database';
 import type { ListType, ShoppingList } from '../../db/types';
+import { Field, FieldError, PrimaryButton, Segmented, TextInput } from '../kit';
 import { openSheet } from '../overlay';
 
 export function openListFormSheet(existing?: ShoppingList): Promise<void> {
@@ -54,51 +55,41 @@ function ListForm({ existing, close }: { existing?: ShoppingList; close: (result
   };
 
   return (
-    <div class="form-sheet">
-      <h3>{isEdit ? 'Editar lista' : 'Nova lista'}</h3>
-      <label class="field">
-        <span>Nome da lista</span>
-        <input
-          autoFocus
-          value={nome}
-          onInput={(e) => setNome((e.target as HTMLInputElement).value)}
-        />
-      </label>
-      <div class="segmented">
-        <button class={tipo === 'normal' ? 'segment segment--active' : 'segment'} onClick={() => setTipo('normal')}>
-          Normal
-        </button>
-        <button
-          class={tipo === 'periodica' ? 'segment segment--active' : 'segment'}
-          onClick={() => setTipo('periodica')}
-        >
-          Periódica
-        </button>
-      </div>
+    <div class="flex flex-col gap-4 p-5">
+      <h3 class="m-0 text-lg font-bold">{isEdit ? 'Editar lista' : 'Nova lista'}</h3>
+      <Field label="Nome da lista">
+        <TextInput autoFocus value={nome} onInput={(e) => setNome((e.target as HTMLInputElement).value)} />
+      </Field>
+      <Segmented
+        value={tipo}
+        onChange={setTipo}
+        options={[
+          { value: 'normal', label: 'Normal' },
+          { value: 'periodica', label: 'Periódica' },
+        ]}
+      />
       {tipo === 'periodica' && (
-        <label class="field">
-          <span>Repetir a cada quantos dias?</span>
-          <input
+        <Field label="Repetir a cada quantos dias?">
+          <TextInput
             type="number"
             value={intervaloDias}
             onInput={(e) => setIntervaloDias((e.target as HTMLInputElement).value)}
           />
-        </label>
+        </Field>
       )}
-      <label class="field">
-        <span>Orçamento (R$)</span>
-        <input
+      <Field label="Orçamento (R$)">
+        <TextInput
           type="text"
           inputMode="decimal"
           placeholder="Opcional"
           value={orcamento}
           onInput={(e) => setOrcamento((e.target as HTMLInputElement).value)}
         />
-      </label>
-      {erro && <p class="field-error">{erro}</p>}
-      <button class="btn-filled btn-block" disabled={saving} onClick={salvar}>
+      </Field>
+      {erro && <FieldError>{erro}</FieldError>}
+      <PrimaryButton block disabled={saving} onClick={salvar}>
         {saving ? 'Salvando…' : isEdit ? 'Salvar alterações' : 'Criar lista'}
-      </button>
+      </PrimaryButton>
     </div>
   );
 }

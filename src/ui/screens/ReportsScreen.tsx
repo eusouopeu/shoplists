@@ -2,6 +2,8 @@ import { useMemo, useState } from 'preact/hooks';
 import { getSpendingReport } from '../../db/database';
 import { exportSpendingReportCsv } from '../../services/reportService';
 import { useLiveQuery } from '../../state/useLiveQuery';
+import { IconDocumentDownload } from '../icons';
+import { ActionChip, AppBar, AppBarTitle, Centered, ProgressBar, ScreenBody, SectionLabel, Screen, TextButton } from '../kit';
 
 type Period = 'mesAtual' | 'mesPassado' | 'ultimos3Meses' | 'anoAtual';
 
@@ -43,54 +45,49 @@ export function ReportsScreen() {
   const report = useLiveQuery(() => getSpendingReport(inicio, fim), [inicio.getTime(), fim.getTime()]);
 
   return (
-    <div class="screen">
-      <header class="appbar">
-        <h1>Relatório de gastos</h1>
-      </header>
-      <div class="screen-body">
-        <div class="report-period-row">
+    <Screen>
+      <AppBar>
+        <AppBarTitle>Relatório de gastos</AppBarTitle>
+      </AppBar>
+      <ScreenBody>
+        <div class="mb-3 flex flex-wrap gap-2">
           {PERIODS.map((p) => (
-            <button
-              key={p.value}
-              class={p.value === period ? 'chip chip--action chip--selected' : 'chip chip--action'}
-              onClick={() => setPeriod(p.value)}
-            >
+            <ActionChip key={p.value} selected={p.value === period} onClick={() => setPeriod(p.value)}>
               {p.label}
-            </button>
+            </ActionChip>
           ))}
         </div>
-        <div class="card-subtitle">{formatRange(inicio, fim)}</div>
+        <div class="text-[0.85rem] text-text-muted">{formatRange(inicio, fim)}</div>
 
         {report === undefined ? (
-          <div class="centered">Carregando…</div>
+          <Centered>Carregando…</Centered>
         ) : report.entradas.length === 0 ? (
-          <div class="centered muted">
-            <p class="centered-text">Nenhuma compra registrada neste período.</p>
-          </div>
+          <Centered muted>
+            <p class="max-w-[320px]">Nenhuma compra registrada neste período.</p>
+          </Centered>
         ) : (
           <>
-            <div class="report-total">{formatPrice(report.total)}</div>
-            <div class="section-label">Por categoria</div>
+            <div class="my-3 text-2xl font-extrabold text-danger">{formatPrice(report.total)}</div>
+            <SectionLabel>Por categoria</SectionLabel>
             {report.porCategoria.map((c) => {
               const pct = report.total > 0 ? Math.round((c.total / report.total) * 100) : 0;
               return (
-                <div class="report-category-row" key={c.categoriaId ?? 'none'}>
-                  <div class="card-subtitle">
-                    {c.categoriaNome} • {formatPrice(c.total)} ({pct}%) • {c.vezes}{' '}
-                    {c.vezes === 1 ? 'compra' : 'compras'}
+                <div class="mb-3" key={c.categoriaId ?? 'none'}>
+                  <div class="mb-1 text-[0.85rem] text-text-muted">
+                    {c.categoriaNome} • {formatPrice(c.total)} ({pct}%) • {c.vezes} {c.vezes === 1 ? 'compra' : 'compras'}
                   </div>
-                  <div class="report-bar-track">
-                    <div class="report-bar-fill" style={{ width: `${pct}%` }} />
-                  </div>
+                  <ProgressBar pct={pct} />
                 </div>
               );
             })}
-            <button class="btn-text" onClick={() => exportSpendingReportCsv(report)}>
-              ⬇️ Exportar CSV
-            </button>
+            <TextButton onClick={() => exportSpendingReportCsv(report)}>
+              <span class="inline-flex items-center gap-1.5">
+                <IconDocumentDownload size={18} /> Exportar CSV
+              </span>
+            </TextButton>
           </>
         )}
-      </div>
-    </div>
+      </ScreenBody>
+    </Screen>
   );
 }

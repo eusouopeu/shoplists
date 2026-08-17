@@ -2,6 +2,8 @@ import { useRef, useState } from 'preact/hooks';
 import { insertItem, insertLink, markItemPurchased } from '../../db/database';
 import { parseReceiptLines, recognizeReceiptText } from '../../services/receiptOcrService';
 import type { ParsedReceiptItem } from '../../services/receiptOcrService';
+import { IconCamera } from '../icons';
+import { Centered, FieldError, PrimaryButton, TextButton } from '../kit';
 import { openSheet } from '../overlay';
 
 export function openReceiptImportSheet(listId: number): Promise<void> {
@@ -61,76 +63,73 @@ function ReceiptImportForm({ listId, close }: { listId: number; close: (result?:
         nomeSimplificado: linha.nome.trim(),
         quantidade: linha.quantidade,
       });
-      const linkId = await insertLink({
+      await insertLink({
         itemId,
         url: 'Nota fiscal (importado)',
         loja: 'outro',
         preco: linha.preco,
         escolhido: true,
       });
-      void linkId;
       await markItemPurchased(itemId);
     }
     close();
   };
 
   return (
-    <div class="form-sheet">
-      <h3>Importar nota fiscal</h3>
+    <div class="flex flex-col gap-4 p-5">
+      <h3 class="m-0 text-lg font-bold">Importar nota fiscal</h3>
       {stage === 'pick' && (
         <>
-          <p class="card-subtitle">
+          <p class="m-0 text-[0.85rem] text-text-muted">
             Tire uma foto (ou escolha uma imagem) da nota fiscal. Os itens reconhecidos são adicionados a
             esta lista já marcados como comprados, com o preço lido.
           </p>
-          {erro && <div class="field-error">{erro}</div>}
-          <button class="btn-filled btn-block" onClick={() => fileRef.current?.click()}>
-            📷 Escolher foto da nota
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            class="hidden-file-input"
-            onChange={onFile}
-          />
-          <button class="btn-text" onClick={() => close()}>
+          {erro && <FieldError>{erro}</FieldError>}
+          <PrimaryButton block onClick={() => fileRef.current?.click()}>
+            <span class="inline-flex items-center gap-2">
+              <IconCamera size={20} /> Escolher foto da nota
+            </span>
+          </PrimaryButton>
+          <input ref={fileRef} type="file" accept="image/*" capture="environment" class="hidden" onChange={onFile} />
+          <TextButton block onClick={() => close()}>
             Cancelar
-          </button>
+          </TextButton>
         </>
       )}
       {stage === 'reading' && (
-        <div class="centered-column">
-          <div class="centered">Lendo a nota fiscal… {progress}%</div>
+        <div class="flex flex-col items-stretch gap-4 pt-2">
+          <Centered>Lendo a nota fiscal… {progress}%</Centered>
         </div>
       )}
       {stage === 'review' && (
         <>
-          <p class="card-subtitle">Confira os itens reconhecidos antes de adicionar. Você pode editar nome, quantidade e preço.</p>
-          <div class="receipt-review-list">
+          <p class="m-0 text-[0.85rem] text-text-muted">
+            Confira os itens reconhecidos antes de adicionar. Você pode editar nome, quantidade e preço.
+          </p>
+          <div class="flex max-h-[50vh] flex-col gap-1.5 overflow-y-auto">
             {linhas.map((linha, i) => (
-              <div class="receipt-review-row" key={i}>
+              <div class="flex items-center gap-1.5" key={i}>
                 <input
                   type="checkbox"
+                  class="h-4 w-4 accent-[var(--color-accent)]"
                   checked={linha.incluir}
                   onChange={(e) => atualizarLinha(i, { incluir: (e.target as HTMLInputElement).checked })}
                 />
                 <input
-                  class="receipt-review-nome"
+                  class="min-w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-[0.9rem] text-text"
                   type="text"
                   value={linha.nome}
                   onInput={(e) => atualizarLinha(i, { nome: (e.target as HTMLInputElement).value })}
                 />
                 <input
-                  class="receipt-review-qtd"
+                  class="w-11 rounded-lg border border-border bg-surface px-2 py-1.5 text-[0.9rem] text-text"
                   type="number"
                   min="1"
                   value={linha.quantidade}
                   onInput={(e) => atualizarLinha(i, { quantidade: Number((e.target as HTMLInputElement).value) || 1 })}
                 />
                 <input
-                  class="receipt-review-preco"
+                  class="w-[72px] rounded-lg border border-border bg-surface px-2 py-1.5 text-[0.9rem] text-text"
                   type="number"
                   min="0"
                   step="0.01"
@@ -140,17 +139,17 @@ function ReceiptImportForm({ listId, close }: { listId: number; close: (result?:
               </div>
             ))}
           </div>
-          <button class="btn-filled btn-block" onClick={confirmar}>
+          <PrimaryButton block onClick={confirmar}>
             Adicionar {linhas.filter((l) => l.incluir).length} itens
-          </button>
-          <button class="btn-text" onClick={() => close()}>
+          </PrimaryButton>
+          <TextButton block onClick={() => close()}>
             Cancelar
-          </button>
+          </TextButton>
         </>
       )}
       {stage === 'saving' && (
-        <div class="centered-column">
-          <div class="centered">Adicionando itens…</div>
+        <div class="flex flex-col items-stretch gap-4 pt-2">
+          <Centered>Adicionando itens…</Centered>
         </div>
       )}
     </div>

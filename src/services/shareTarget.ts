@@ -22,7 +22,7 @@ export function consumeSharedUrl(): string | null {
   return null;
 }
 
-function isUrl(value: string): boolean {
+export function isUrl(value: string): boolean {
   try {
     const u = new URL(value);
     return u.protocol === 'http:' || u.protocol === 'https:';

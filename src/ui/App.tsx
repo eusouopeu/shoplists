@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { checkPeriodicListsResurgence, getLists } from '../db/database';
+import { maybeCreateAutoBackup } from '../services/autoBackupService';
+import { listenForNativeSharedUrl } from '../services/nativeShareIntent';
 import { checkExpiringWarranties } from '../services/notificationService';
 import { consumeSharedUrl } from '../services/shareTarget';
 import { alertDialog } from './components/ConfirmDialog';
@@ -23,8 +25,10 @@ export function App() {
   useEffect(() => {
     void checkPeriodicListsResurgence();
     void checkExpiringWarranties();
+    void maybeCreateAutoBackup();
     void handleSharedUrlOnLoad();
     handleShortcutAction();
+    return listenForNativeSharedUrl((url) => void handleIncomingSharedUrl(url));
   }, []);
 
   function handleShortcutAction() {
@@ -39,7 +43,13 @@ export function App() {
   async function handleSharedUrlOnLoad() {
     const url = consumeSharedUrl();
     if (!url) return;
+    await handleIncomingSharedUrl(url);
+  }
 
+  /** Comum ao Web Share Target (PWA, `consumeSharedUrl`) e ao Intent
+   * ACTION_SEND nativo do Android (`listenForNativeSharedUrl`) — pergunta em
+   * qual lista adicionar o link compartilhado e abre o formulário do item. */
+  async function handleIncomingSharedUrl(url: string) {
     const lists = await getLists();
     if (lists.length === 0) {
       await alertDialog({ content: 'Crie uma lista antes de importar um link.' });
@@ -61,12 +71,15 @@ export function App() {
   const top = stack[stack.length - 1];
 
   return (
-    <div class="app-root">
+    <div class="relative mx-auto flex h-full max-w-[560px] flex-col bg-canvas">
       {top ? (
         <PushedScreen screen={top} onBack={pop} onPush={push} />
       ) : (
         <>
-          <div class="tab-content">
+          {/* min-h-0 é o que faz o container ceder espaço para a BottomNav em
+              vez de deixá-la "flutuar" com espaço em branco embaixo — sem
+              isso um flex item com conteúdo curto não cede para os irmãos. */}
+          <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
             {tab === 'lists' && <ListsScreen onPush={push} />}
             {tab === 'history' && <HistoryScreen />}
             {tab === 'reports' && <ReportsScreen />}

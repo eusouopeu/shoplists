@@ -13,7 +13,26 @@ import type { StoreType } from '../../db/types';
 import { detectStore, storeLabel } from '../../domain/storeDetector';
 import { fetchLinkMetadata } from '../../services/linkMetadataService';
 import { useLiveQuery } from '../../state/useLiveQuery';
+import { openBarcodeScannerSheet } from '../components/BarcodeScannerSheet';
 import { promptText } from '../components/PromptDialog';
+import { IconArrowLeft, IconLink, IconQrCode, IconTrash } from '../icons';
+import {
+  AppBar,
+  AppBarTitle,
+  Centered,
+  Chip,
+  Field,
+  FieldError,
+  IconButton,
+  PrimaryButton,
+  ScreenBody,
+  SectionLabel,
+  Screen,
+  Select,
+  Spinner,
+  TextButton,
+  TextInput,
+} from '../kit';
 
 interface LinkDraft {
   key: number;
@@ -113,6 +132,11 @@ export function ItemFormScreen({
     if (url) await addLink(url);
   }
 
+  async function scanBarcode() {
+    const result = await openBarcodeScannerSheet();
+    if (result?.nome && !nome.trim()) setNome(result.nome);
+  }
+
   function updateDraft(key: number, patch: Partial<LinkDraft>) {
     setLinks((prev) => prev.map((d) => (d.key === key ? { ...d, ...patch } : d)));
   }
@@ -186,26 +210,35 @@ export function ItemFormScreen({
   }
 
   return (
-    <div class="screen">
-      <header class="appbar">
-        <button class="icon-btn appbar-back" aria-label="Voltar" onClick={onBack}>
-          ←
-        </button>
-        <h1>{isEdit ? 'Editar item' : 'Novo item'}</h1>
-      </header>
-      <div class="screen-body">
+    <Screen>
+      <AppBar>
+        <IconButton label="Voltar" variant="header" onClick={onBack}>
+          <IconArrowLeft size={22} />
+        </IconButton>
+        <AppBarTitle>{isEdit ? 'Editar item' : 'Novo item'}</AppBarTitle>
+      </AppBar>
+      <ScreenBody>
         {loadingExisting ? (
-          <div class="centered">Carregando…</div>
+          <Centered>Carregando…</Centered>
         ) : (
-          <div class="form">
-            <label class="field">
-              <span>Nome simplificado</span>
-              <input placeholder="ex: cinto marrom" value={nome} onInput={(e) => setNome((e.target as HTMLInputElement).value)} />
-            </label>
+          <div class="flex flex-col gap-4">
+            <div class="flex items-end gap-2">
+              <div class="flex-1">
+                <Field label="Nome simplificado">
+                  <TextInput
+                    placeholder="ex: cinto marrom"
+                    value={nome}
+                    onInput={(e) => setNome((e.target as HTMLInputElement).value)}
+                  />
+                </Field>
+              </div>
+              <IconButton label="Escanear código de barras" onClick={scanBarcode} class="mb-0.5 border border-border">
+                <IconQrCode size={22} />
+              </IconButton>
+            </div>
 
-            <label class="field">
-              <span>Categoria</span>
-              <select
+            <Field label="Categoria">
+              <Select
                 value={categoriaId ?? ''}
                 onChange={(e) => {
                   const v = (e.target as HTMLSelectElement).value;
@@ -219,46 +252,43 @@ export function ItemFormScreen({
                     {c.nome}
                   </option>
                 ))}
-              </select>
-            </label>
+              </Select>
+            </Field>
 
-            <div class="field-row">
-              <label class="field">
-                <span>Quantidade</span>
-                <input
-                  type="number"
-                  value={quantidade}
-                  onInput={(e) => setQuantidade((e.target as HTMLInputElement).value)}
-                />
-              </label>
-              <label class="field">
-                <span>Unidades por item</span>
-                <input
-                  type="number"
-                  value={unidadesPorItem}
-                  onInput={(e) => setUnidadesPorItem((e.target as HTMLInputElement).value)}
-                />
-                <small>ex: Kit com 2 → 2</small>
-              </label>
+            <div class="flex gap-3">
+              <div class="flex-1">
+                <Field label="Quantidade">
+                  <TextInput
+                    type="number"
+                    value={quantidade}
+                    onInput={(e) => setQuantidade((e.target as HTMLInputElement).value)}
+                  />
+                </Field>
+              </div>
+              <div class="flex-1">
+                <Field label="Unidades por item" hint="ex: Kit com 2 → 2">
+                  <TextInput
+                    type="number"
+                    value={unidadesPorItem}
+                    onInput={(e) => setUnidadesPorItem((e.target as HTMLInputElement).value)}
+                  />
+                </Field>
+              </div>
             </div>
 
-            <label class="field">
-              <span>Prazo de garantia (dias)</span>
-              <input
+            <Field label="Prazo de garantia (dias)" hint="Opcional — usado ao marcar como comprado">
+              <TextInput
                 type="number"
                 value={prazoGarantiaDias}
                 onInput={(e) => setPrazoGarantiaDias((e.target as HTMLInputElement).value)}
               />
-              <small>Opcional — usado ao marcar como comprado</small>
-            </label>
+            </Field>
 
-            {erro && <p class="field-error">{erro}</p>}
+            {erro && <FieldError>{erro}</FieldError>}
 
-            <div class="field-row-header">
-              <span class="section-label">Links do produto</span>
-              <button class="btn-text" onClick={promptAddLink}>
-                ＋ Adicionar link
-              </button>
+            <div class="mt-2 flex items-center justify-between">
+              <SectionLabel>Links do produto</SectionLabel>
+              <TextButton onClick={promptAddLink}>＋ Adicionar link</TextButton>
             </div>
 
             {links.map((draft) => (
@@ -270,13 +300,13 @@ export function ItemFormScreen({
               />
             ))}
 
-            <button class="btn-filled btn-block" disabled={saving} onClick={salvar}>
+            <PrimaryButton block disabled={saving} onClick={salvar}>
               {saving ? 'Salvando…' : 'Salvar item'}
-            </button>
+            </PrimaryButton>
           </div>
         )}
-      </div>
-    </div>
+      </ScreenBody>
+    </Screen>
   );
 }
 
@@ -290,21 +320,24 @@ function LinkCard({
   onRemove: () => void;
 }) {
   return (
-    <div class="card link-card">
+    <div class="mb-2.5 flex items-start gap-3 rounded-lg border border-border bg-surface px-3 py-3.5 shadow-sm">
       {draft.imagemUrl ? (
-        <img class="link-thumb" src={draft.imagemUrl} alt="" />
+        <img class="h-14 w-14 shrink-0 rounded-lg object-cover" src={draft.imagemUrl} alt="" />
       ) : (
-        <div class="link-thumb link-thumb--placeholder">🔗</div>
-      )}
-      <div class="link-card-main">
-        <div class="chip-row">
-          <span class="chip">{storeLabel(draft.loja)}</span>
-          {draft.loading && <span class="spinner-inline" />}
+        <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-surface-muted text-text-muted">
+          <IconLink size={22} />
         </div>
-        {draft.tituloOriginal && <div class="link-title">{draft.tituloOriginal}</div>}
-        <label class="field">
-          <span>Preço (R$)</span>
-          <input
+      )}
+      <div class="flex min-w-0 flex-1 flex-col gap-2">
+        <div class="flex items-center gap-2">
+          <Chip>{storeLabel(draft.loja)}</Chip>
+          {draft.loading && <Spinner />}
+        </div>
+        {draft.tituloOriginal && (
+          <div class="line-clamp-2 text-[0.85rem] text-text-muted">{draft.tituloOriginal}</div>
+        )}
+        <Field label="Preço (R$)">
+          <TextInput
             type="text"
             inputMode="decimal"
             value={draft.preco?.toFixed(2) ?? ''}
@@ -313,11 +346,11 @@ function LinkCard({
               onPrecoChange(v.trim() === '' ? null : Number.parseFloat(v));
             }}
           />
-        </label>
+        </Field>
       </div>
-      <button class="icon-btn" aria-label="Remover link" onClick={onRemove}>
-        🗑
-      </button>
+      <IconButton label="Remover link" onClick={onRemove}>
+        <IconTrash size={18} />
+      </IconButton>
     </div>
   );
 }

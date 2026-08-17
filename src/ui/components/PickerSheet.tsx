@@ -14,12 +14,16 @@ interface PickerOptions<T> {
 
 export function pickOne<T>(options: PickerOptions<T>): Promise<T | undefined> {
   return openSheet<T>((close) => (
-    <div class="sheet-list">
-      <div class="sheet-title">{options.title}</div>
+    <div class="py-3 pb-5">
+      <div class="px-5 py-3 font-bold">{options.title}</div>
       {options.options.map((opt, i) => (
-        <button key={i} class="sheet-item" onClick={() => close(opt.value)}>
-          <span class="sheet-item-label">{opt.label}</span>
-          {opt.sublabel && <span class="sheet-item-sublabel">{opt.sublabel}</span>}
+        <button
+          key={i}
+          class="flex w-full flex-col items-start gap-0.5 px-5 py-3 text-left text-text hover:bg-surface-muted"
+          onClick={() => close(opt.value)}
+        >
+          <span class="w-full truncate">{opt.label}</span>
+          {opt.sublabel && <span class="text-[0.85rem] text-text-muted">{opt.sublabel}</span>}
         </button>
       ))}
     </div>

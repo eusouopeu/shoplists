@@ -1,5 +1,12 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type { Category, ProductLink, PurchaseHistoryEntry, ShoppingList, ShoppingListItem } from './types';
+import type { FullBackup } from './backupTypes';
+
+export interface BackupSnapshot {
+  id: number;
+  createdAt: Date;
+  data: FullBackup;
+}
 
 const DEFAULT_CATEGORY_SEEDS = [
   'Roupas',
@@ -16,6 +23,7 @@ class ShoplistDexie extends Dexie {
   shoppingListItems!: EntityTable<ShoppingListItem, 'id'>;
   productLinks!: EntityTable<ProductLink, 'id'>;
   purchaseHistory!: EntityTable<PurchaseHistoryEntry, 'id'>;
+  backupSnapshots!: EntityTable<BackupSnapshot, 'id'>;
 
   constructor() {
     super('shoplist');
@@ -63,6 +71,15 @@ class ShoplistDexie extends Dexie {
           }
         }
       });
+
+    this.version(3).stores({
+      categories: '++id, nome',
+      shoppingLists: '++id, status, dataCriacao',
+      shoppingListItems: '++id, listaId, categoriaId, ordem',
+      productLinks: '++id, itemId',
+      purchaseHistory: '++id, itemNome, listaId, data',
+      backupSnapshots: '++id, createdAt',
+    });
 
     this.on('populate', async () => {
       await this.categories.bulkAdd(

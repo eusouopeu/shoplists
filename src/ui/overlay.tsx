@@ -53,14 +53,20 @@ export function OverlayHost() {
 
   if (!entry) return null;
 
+  const alignment = entry.kind === 'dialog' ? 'items-center justify-center p-6' : 'items-end justify-center';
+  const boxClass =
+    entry.kind === 'dialog'
+      ? 'w-full max-w-[400px] rounded-2xl bg-surface text-text shadow-xl'
+      : 'w-full max-w-[560px] max-h-[80vh] overflow-y-auto rounded-t-2xl bg-surface text-text pb-[env(safe-area-inset-bottom)] shadow-xl';
+
   return (
     <div
-      class={`overlay-backdrop overlay-backdrop--${entry.kind}`}
+      class={`fixed inset-0 z-[1000] flex bg-black/50 ${alignment}`}
       onClick={(e) => {
         if (e.target === e.currentTarget) entry.close(undefined);
       }}
     >
-      <div class={entry.kind === 'dialog' ? 'dialog-box' : 'sheet-box'}>{entry.render(entry.close)}</div>
+      <div class={boxClass}>{entry.render(entry.close)}</div>
     </div>
   );
 }

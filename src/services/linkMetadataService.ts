@@ -1,4 +1,5 @@
 import type { StoreType } from '../db/types';
+import { fetchLinkMetadataViaNativeRender, nativeRenderingAvailable } from './nativeLinkRenderer';
 
 export interface LinkMetadata {
   nome: string | null;
@@ -11,13 +12,19 @@ const EMPTY_METADATA: LinkMetadata = { nome: null, imagemUrl: null, preco: null 
 /** Busca nome/imagem/preço de um link de produto.
  *
  * Mercado Livre expõe título, imagem e preço via API pública sem
- * autenticação (endpoint /items/{id}). Para as demais lojas (Shopee,
- * Amazon, outras) tentamos extrair as meta tags Open Graph — mas rodando no
- * navegador isso só funciona se o site alvo enviar cabeçalhos CORS
- * permissivos, o que a maioria das lojas não faz; nesse caso o preço
- * permanece como entrada manual do usuário. */
+ * autenticação (endpoint /items/{id}). Para a Shopee, no app nativo Android
+ * usamos o plugin `LinkRenderer` (WebView invisível que renderiza a página
+ * de verdade e lê o DOM depois — ver nativeLinkRenderer.ts), já que a
+ * Shopee bloqueia fetch cru. Para as demais lojas, ou quando rodando como
+ * PWA web (onde não há WebView nativo disponível), tentamos as meta tags
+ * Open Graph via fetch — que só funciona se o site alvo enviar cabeçalhos
+ * CORS permissivos; nesse caso o preço permanece como entrada manual. */
 export async function fetchLinkMetadata(url: string, loja: StoreType): Promise<LinkMetadata> {
   try {
+    if (loja === 'shopee' && nativeRenderingAvailable()) {
+      const viaNative = await fetchLinkMetadataViaNativeRender(url);
+      if (viaNative) return viaNative;
+    }
     if (loja === 'mercadoLivre') {
       return await fetchMercadoLivre(url);
     }

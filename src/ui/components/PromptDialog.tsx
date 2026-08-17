@@ -1,4 +1,5 @@
 import { useRef } from 'preact/hooks';
+import { PrimaryButton, TextButton, TextInput } from '../kit';
 import { openDialog } from '../overlay';
 
 interface PromptOptions {
@@ -21,9 +22,9 @@ function PromptForm({ options, close }: { options: PromptOptions; close: (result
   };
 
   return (
-    <div class="dialog">
-      <h3>{options.title}</h3>
-      <input
+    <div class="flex flex-col gap-2.5 p-5">
+      <h3 class="m-0 text-lg font-bold">{options.title}</h3>
+      <TextInput
         ref={inputRef}
         type={options.inputType ?? 'text'}
         placeholder={options.placeholder}
@@ -32,13 +33,9 @@ function PromptForm({ options, close }: { options: PromptOptions; close: (result
           if (e.key === 'Enter') submit();
         }}
       />
-      <div class="dialog-actions">
-        <button class="btn-text" onClick={() => close(undefined)}>
-          Cancelar
-        </button>
-        <button class="btn-filled" onClick={submit}>
-          {options.confirmLabel ?? 'Adicionar'}
-        </button>
+      <div class="mt-2 flex justify-end gap-2">
+        <TextButton onClick={() => close(undefined)}>Cancelar</TextButton>
+        <PrimaryButton onClick={submit}>{options.confirmLabel ?? 'Adicionar'}</PrimaryButton>
       </div>
     </div>
   );

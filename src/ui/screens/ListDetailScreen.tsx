@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import {
   chooseLink,
   deleteItem,
@@ -18,12 +18,25 @@ import {
 import type { FrequentItem, RecurringSuggestion } from '../../db/database';
 import type { ShoppingListItem } from '../../db/types';
 import { exportListShare } from '../../services/backupService';
+import { checkBudgetAlert } from '../../services/notificationService';
 import { useLiveQuery } from '../../state/useLiveQuery';
 import { confirmDialog } from '../components/ConfirmDialog';
 import { openListFormSheet } from '../components/ListFormSheet';
 import { pickOne } from '../components/PickerSheet';
 import { openReceiptImportSheet } from '../components/ReceiptImportSheet';
-import type { Screen } from '../types';
+import {
+  IconArrowLeft,
+  IconBars3,
+  IconCart,
+  IconCheckCircle,
+  IconPencil,
+  IconPlus,
+  IconReceipt,
+  IconTrash,
+  IconUploadTray,
+} from '../icons';
+import { ActionChip, AppBar, AppBarTitle, Centered, Fab, IconButton, ProgressBar, ScreenBody, SectionLabel, Screen } from '../kit';
+import type { Screen as AppScreen } from '../types';
 import { useDragReorder } from '../useDragReorder';
 
 export function ListDetailScreen({
@@ -33,12 +46,18 @@ export function ListDetailScreen({
 }: {
   listId: number;
   onBack: () => void;
-  onPush: (screen: Screen) => void;
+  onPush: (screen: AppScreen) => void;
 }) {
   const list = useLiveQuery(() => getList(listId), [listId]);
   const items = useLiveQuery(() => getItemsForList(listId), [listId]);
   const total = useLiveQuery(() => totalPriceForList(listId), [listId, items]);
   const [marketMode, setMarketMode] = useState(false);
+
+  useEffect(() => {
+    if (list?.orcamento != null && total !== undefined) {
+      void checkBudgetAlert(listId, list.nome, total, list.orcamento);
+    }
+  }, [listId, list?.nome, list?.orcamento, total]);
 
   const confirmarMarcarTudo = async () => {
     const ok = await confirmDialog({
@@ -73,54 +92,48 @@ export function ListDetailScreen({
   const comprados = items?.filter((i) => i.comprado).length ?? 0;
 
   return (
-    <div class="screen">
-      <header class="appbar">
-        <button class="icon-btn appbar-back" aria-label="Voltar" onClick={onBack}>
-          ←
-        </button>
-        <h1>{list?.nome ?? 'Lista'}</h1>
-        <button
-          class={marketMode ? 'icon-btn icon-btn--active' : 'icon-btn'}
-          aria-label="Modo mercado"
-          onClick={() => setMarketMode((v) => !v)}
-        >
-          🛒
-        </button>
-        <button class="icon-btn" aria-label="Editar lista" onClick={() => list && openListFormSheet(list)}>
-          ✎
-        </button>
-        <button class="icon-btn" aria-label="Compartilhar lista" onClick={compartilhar}>
-          ⇪
-        </button>
-        <button class="icon-btn" aria-label="Importar nota fiscal" onClick={importarNota}>
-          🧾
-        </button>
-        <button class="icon-btn" aria-label="Marcar lista inteira como comprada" onClick={confirmarMarcarTudo}>
-          ✓✓
-        </button>
-      </header>
-      <div class="total-row">
-        <span class="total-label">Total</span>
-        <span class="total-value">{total !== undefined ? `R$ ${total.toFixed(2)}` : '…'}</span>
+    <Screen>
+      <AppBar>
+        <IconButton label="Voltar" variant="header" onClick={onBack}>
+          <IconArrowLeft size={22} />
+        </IconButton>
+        <AppBarTitle>{list?.nome ?? 'Lista'}</AppBarTitle>
+        <IconButton label="Modo mercado" variant="header" active={marketMode} onClick={() => setMarketMode((v) => !v)}>
+          <IconCart size={20} />
+        </IconButton>
+        <IconButton label="Editar lista" variant="header" onClick={() => list && openListFormSheet(list)}>
+          <IconPencil size={20} />
+        </IconButton>
+        <IconButton label="Compartilhar lista" variant="header" onClick={compartilhar}>
+          <IconUploadTray size={20} />
+        </IconButton>
+        <IconButton label="Importar nota fiscal" variant="header" onClick={importarNota}>
+          <IconReceipt size={20} />
+        </IconButton>
+        <IconButton label="Marcar lista inteira como comprada" variant="header" onClick={confirmarMarcarTudo}>
+          <IconCheckCircle size={20} />
+        </IconButton>
+      </AppBar>
+      <div class="flex items-baseline justify-between px-4 py-4">
+        <span class="font-semibold">Total</span>
+        <span class="text-xl font-extrabold text-danger">{total !== undefined ? `R$ ${total.toFixed(2)}` : '…'}</span>
       </div>
-      {list?.orcamento != null && total !== undefined && (
-        <BudgetBar total={total} orcamento={list.orcamento} />
-      )}
-      <hr />
-      <div class="screen-body">
+      {list?.orcamento != null && total !== undefined && <BudgetBar total={total} orcamento={list.orcamento} />}
+      <hr class="mx-4 my-0 border-border" />
+      <ScreenBody>
         {!marketMode && items !== undefined && (
           <RecurringSuggestionsBanner listId={listId} currentItemNames={items.map((i) => i.nomeSimplificado)} />
         )}
         {items === undefined ? (
-          <div class="centered">Carregando…</div>
+          <Centered>Carregando…</Centered>
         ) : items.length === 0 ? (
           <EmptyListBody listId={listId} />
         ) : (
           <ItemsList items={items} marketMode={marketMode} onPush={onPush} />
         )}
-      </div>
+      </ScreenBody>
       {marketMode && items && items.length > 0 && (
-        <div class="market-footer">
+        <div class="flex shrink-0 items-center justify-between bg-header px-5 py-3.5 font-bold text-white">
           <span>
             {comprados}/{items.length} itens
           </span>
@@ -128,11 +141,11 @@ export function ListDetailScreen({
         </div>
       )}
       {!marketMode && (
-        <button class="fab" aria-label="Novo item" onClick={() => onPush({ type: 'itemForm', listId })}>
-          +
-        </button>
+        <Fab label="Novo item" onClick={() => onPush({ type: 'itemForm', listId })}>
+          <IconPlus size={26} />
+        </Fab>
       )}
-    </div>
+    </Screen>
   );
 }
 
@@ -140,14 +153,9 @@ function BudgetBar({ total, orcamento }: { total: number; orcamento: number }) {
   const pct = orcamento > 0 ? Math.min(100, (total / orcamento) * 100) : 0;
   const over = total > orcamento;
   return (
-    <div class="budget-row">
-      <div class="budget-bar">
-        <div
-          class={over ? 'budget-bar-fill budget-bar-fill--over' : 'budget-bar-fill'}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <span class={over ? 'budget-label budget-label--over' : 'budget-label'}>
+    <div class="flex flex-col gap-1 px-4 pb-3">
+      <ProgressBar pct={pct} danger={over} />
+      <span class={`text-[0.75rem] ${over ? 'font-semibold text-danger' : 'text-text-muted'}`}>
         {over ? 'Acima do orçamento • ' : ''}
         orçamento R$ {orcamento.toFixed(2)}
       </span>
@@ -173,18 +181,17 @@ function RecurringSuggestionsBanner({
   if (filtradas.length === 0) return null;
 
   return (
-    <div class="suggestions suggestions--recurring">
-      <div class="section-label">Provavelmente hora de comprar de novo</div>
-      <div class="chip-wrap">
+    <div class="mb-4 px-1">
+      <SectionLabel>Provavelmente hora de comprar de novo</SectionLabel>
+      <div class="flex flex-wrap gap-2">
         {filtradas.map((s) => (
-          <button
+          <ActionChip
             key={s.nome}
-            class="chip chip--action"
             title={`Comprado ${s.vezes}x, a cada ${Math.round(s.intervaloMedioDias)} dias em média`}
             onClick={() => adicionar(s)}
           >
             ＋ {s.nome}
-          </button>
+          </ActionChip>
         ))}
       </div>
     </div>
@@ -199,16 +206,16 @@ function EmptyListBody({ listId }: { listId: number }) {
   };
 
   return (
-    <div class="centered-column">
-      <div class="centered muted">Nenhum item ainda. Toque em + para adicionar.</div>
+    <div class="flex flex-col items-stretch gap-4 pt-6">
+      <Centered muted>Nenhum item ainda. Toque em + para adicionar.</Centered>
       {sugestoes !== undefined && sugestoes.length > 0 && (
-        <div class="suggestions">
-          <div class="section-label">Sugestões de itens frequentes</div>
-          <div class="chip-wrap">
+        <div class="px-1">
+          <SectionLabel>Sugestões de itens frequentes</SectionLabel>
+          <div class="flex flex-wrap gap-2">
             {sugestoes.map((s) => (
-              <button key={s.nome} class="chip chip--action" onClick={() => adicionar(s)}>
+              <ActionChip key={s.nome} onClick={() => adicionar(s)}>
                 ＋ {s.nome}
-              </button>
+              </ActionChip>
             ))}
           </div>
         </div>
@@ -224,7 +231,7 @@ function ItemsList({
 }: {
   items: ShoppingListItem[];
   marketMode: boolean;
-  onPush: (screen: Screen) => void;
+  onPush: (screen: AppScreen) => void;
 }) {
   const { orderedItems, draggingId, containerRef, handleProps } = useDragReorder({
     items,
@@ -233,7 +240,7 @@ function ItemsList({
   });
 
   return (
-    <div class="item-list" ref={containerRef}>
+    <div class="flex flex-col" ref={containerRef}>
       {orderedItems.map((item) => (
         <div key={item.id} data-drag-id={item.id}>
           <ItemRow
@@ -260,7 +267,7 @@ function ItemRow({
   marketMode: boolean;
   dragging: boolean;
   dragHandleProps?: { onPointerDown: (e: PointerEvent) => void };
-  onPush: (screen: Screen) => void;
+  onPush: (screen: AppScreen) => void;
 }) {
   const unitPrice = useLiveQuery(() => unitPriceForItem(item), [item.id, item.comprado]);
 
@@ -291,7 +298,7 @@ function ItemRow({
     await markItemPurchased(item.id!);
   };
 
-  const excluir = async (e: Event) => {
+  const excluir = async (e: MouseEvent) => {
     e.stopPropagation();
     const ok = await confirmDialog({
       title: 'Excluir item?',
@@ -301,31 +308,26 @@ function ItemRow({
     if (ok) await deleteItem(item.id!);
   };
 
-  const rowClass = [
-    'list-row',
-    'item-row',
-    marketMode ? 'item-row--market' : '',
-    dragging ? 'item-row--dragging' : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
-
   return (
-    <div class={rowClass}>
+    <div
+      class={`flex items-center gap-2.5 border-b border-border ${marketMode ? 'py-[18px]' : 'py-3'} ${
+        dragging ? 'bg-surface-muted opacity-60' : ''
+      }`}
+    >
       {dragHandleProps && (
-        <span class="drag-handle" onPointerDown={dragHandleProps.onPointerDown}>
-          ⠿
+        <span class="cursor-grab touch-none px-0.5 text-text-muted" onPointerDown={dragHandleProps.onPointerDown}>
+          <IconBars3 size={18} />
         </span>
       )}
       <input
         type="checkbox"
-        class={marketMode ? 'checkbox--large' : ''}
+        class={marketMode ? 'h-[26px] w-[26px] accent-[var(--color-accent)]' : 'h-4 w-4 accent-[var(--color-accent)]'}
         checked={item.comprado}
         onClick={(e) => e.stopPropagation()}
         onChange={(e) => onToggle((e.target as HTMLInputElement).checked)}
       />
       <div
-        class="item-row-main"
+        class="min-w-0 flex-1 cursor-pointer"
         role="button"
         tabIndex={0}
         onClick={() => !marketMode && onPush({ type: 'itemForm', listId: item.listaId, itemId: item.id! })}
@@ -334,17 +336,19 @@ function ItemRow({
             onPush({ type: 'itemForm', listId: item.listaId, itemId: item.id! });
         }}
       >
-        <div class={item.comprado ? 'card-title item-name--done' : 'card-title'}>{item.nomeSimplificado}</div>
-        <div class="card-subtitle">
+        <div class={`font-semibold ${item.comprado ? 'text-text-muted line-through' : ''} ${marketMode ? 'text-lg' : ''}`}>
+          {item.nomeSimplificado}
+        </div>
+        <div class="mt-0.5 text-[0.85rem] text-text-muted">
           Qtd: {item.quantidade}
           {item.unidadesPorItem > 1 ? ` (kit ${item.unidadesPorItem}un)` : ''}
         </div>
       </div>
-      <span class="card-total">{unitPrice != null ? `R$ ${unitPrice.toFixed(2)}` : '--'}</span>
+      <span class="whitespace-nowrap font-bold">{unitPrice != null ? `R$ ${unitPrice.toFixed(2)}` : '--'}</span>
       {!marketMode && (
-        <button class="icon-btn" aria-label="Excluir item" onClick={excluir}>
-          🗑
-        </button>
+        <IconButton label="Excluir item" onClick={excluir}>
+          <IconTrash size={18} />
+        </IconButton>
       )}
     </div>
   );

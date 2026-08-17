@@ -1,3 +1,4 @@
+import type { FullBackup } from './backupTypes';
 import { dexieDb } from './schema';
 import type {
   Category,
@@ -506,15 +507,7 @@ export async function searchAll(query: string): Promise<SearchResults> {
 
 // ---------------- Backup / exportação ----------------
 
-export interface FullBackup {
-  version: 1;
-  exportedAt: string;
-  categories: Category[];
-  shoppingLists: ShoppingList[];
-  shoppingListItems: ShoppingListItem[];
-  productLinks: ProductLink[];
-  purchaseHistory: PurchaseHistoryEntry[];
-}
+export type { FullBackup } from './backupTypes';
 
 export async function getFullBackup(): Promise<FullBackup> {
   const [categories, shoppingLists, shoppingListItems, productLinks, purchaseHistory] = await Promise.all([
@@ -605,4 +598,43 @@ export async function importListExport(data: ListExport): Promise<number> {
       return listId;
     },
   );
+}
+
+// ---------------- Backup automático incremental ----------------
+
+const MAX_AUTO_SNAPSHOTS = 5;
+
+export interface BackupSnapshotSummary {
+  id: number;
+  createdAt: Date;
+}
+
+/** Tira um snapshot completo do banco e mantém só os `MAX_AUTO_SNAPSHOTS`
+ * mais recentes — funciona como um backup incremental automático (sem o
+ * usuário precisar lembrar de exportar manualmente). */
+export async function createAutoBackupSnapshot(): Promise<void> {
+  const data = await getFullBackup();
+  await dexieDb.backupSnapshots.add({ createdAt: new Date(), data });
+
+  const all = await dexieDb.backupSnapshots.orderBy('createdAt').toArray();
+  const excedentes = all.slice(0, Math.max(0, all.length - MAX_AUTO_SNAPSHOTS));
+  if (excedentes.length > 0) {
+    await dexieDb.backupSnapshots.bulkDelete(excedentes.map((s) => s.id));
+  }
+}
+
+export async function getLatestSnapshotDate(): Promise<Date | null> {
+  const latest = await dexieDb.backupSnapshots.orderBy('createdAt').last();
+  return latest?.createdAt ?? null;
+}
+
+export async function listBackupSnapshots(): Promise<BackupSnapshotSummary[]> {
+  const all = await dexieDb.backupSnapshots.orderBy('createdAt').reverse().toArray();
+  return all.map((s) => ({ id: s.id, createdAt: s.createdAt }));
+}
+
+export async function restoreBackupSnapshot(id: number): Promise<void> {
+  const snapshot = await dexieDb.backupSnapshots.get(id);
+  if (!snapshot) throw new Error(`Snapshot ${id} não encontrado`);
+  await restoreFullBackup(snapshot.data);
 }

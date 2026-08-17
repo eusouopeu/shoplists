@@ -1,3 +1,4 @@
+import { PrimaryButton, TextButton } from '../kit';
 import { openDialog } from '../overlay';
 
 interface ConfirmOptions {
@@ -14,13 +15,11 @@ interface AlertOptions {
 
 export function alertDialog(options: AlertOptions): Promise<void> {
   return openDialog<void>((close) => (
-    <div class="dialog">
-      {options.title && <h3>{options.title}</h3>}
-      <p>{options.content}</p>
-      <div class="dialog-actions">
-        <button class="btn-filled" onClick={() => close()}>
-          OK
-        </button>
+    <div class="flex flex-col gap-2.5 p-5">
+      {options.title && <h3 class="m-0 text-lg font-bold">{options.title}</h3>}
+      <p class="m-0 text-text-muted">{options.content}</p>
+      <div class="mt-2 flex justify-end gap-2">
+        <PrimaryButton onClick={() => close()}>OK</PrimaryButton>
       </div>
     </div>
   )).then(() => undefined);
@@ -28,16 +27,12 @@ export function alertDialog(options: AlertOptions): Promise<void> {
 
 export function confirmDialog(options: ConfirmOptions): Promise<boolean> {
   return openDialog<boolean>((close) => (
-    <div class="dialog">
-      <h3>{options.title}</h3>
-      <p>{options.content}</p>
-      <div class="dialog-actions">
-        <button class="btn-text" onClick={() => close(false)}>
-          {options.cancelLabel ?? 'Cancelar'}
-        </button>
-        <button class="btn-filled" onClick={() => close(true)}>
-          {options.confirmLabel ?? 'Confirmar'}
-        </button>
+    <div class="flex flex-col gap-2.5 p-5">
+      <h3 class="m-0 text-lg font-bold">{options.title}</h3>
+      <p class="m-0 text-text-muted">{options.content}</p>
+      <div class="mt-2 flex justify-end gap-2">
+        <TextButton onClick={() => close(false)}>{options.cancelLabel ?? 'Cancelar'}</TextButton>
+        <PrimaryButton onClick={() => close(true)}>{options.confirmLabel ?? 'Confirmar'}</PrimaryButton>
       </div>
     </div>
   )).then((r) => r ?? false);

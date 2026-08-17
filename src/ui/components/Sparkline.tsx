@@ -23,11 +23,11 @@ export function Sparkline({ values, width = 96, height = 28 }: SparklineProps) {
   const lastUp = values[values.length - 1] >= values[0];
 
   return (
-    <svg class="sparkline" width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+    <svg class="block" width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
       <polyline
         points={points}
         fill="none"
-        stroke={lastUp ? 'var(--danger)' : 'var(--primary)'}
+        stroke={lastUp ? 'var(--color-danger)' : 'var(--color-success)'}
         stroke-width="2"
         stroke-linecap="round"
         stroke-linejoin="round"
